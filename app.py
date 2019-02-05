@@ -30,31 +30,37 @@ db.init_app(app)
 class ContactAPI(MethodView):
     # TODO: Add caching wherever required
     def get(self, cid=None):
-        search_term = request.args.get("q")
-        # pagination params
-        start = request.args.get('start') or 1
-        limit = request.args.get('limit') or 10
-        # fetching a particular contact
-        if cid:
-            contacts = Contact.query.filter_by(id=cid).all()
-        # fetching contacts based on the search term in name or email
-        elif search_term:
-            contacts = Contact.query.filter(
-                or_(Contact.name.contains(search_term),Contact.email_id.contains(search_term))
-            ).order_by(Contact.name).all()
-        # fetching all contacts if search term is not passed
-        else:
-            contacts = Contact.query.all()
-        data = []
-        for contact in contacts:
-            c_obj = {}
+        try:
+            search_term = request.args.get("q")
+            # pagination params
+            start = request.args.get('start') or 1
+            limit = request.args.get('limit') or 10
+            # fetching a particular contact
+            if cid:
+                contacts = Contact.query.filter_by(id=cid).all()
+            # fetching contacts based on the search term in name or email
+            elif search_term:
+                contacts = Contact.query.filter(
+                    or_(Contact.name.contains(search_term),Contact.email_id.contains(search_term))
+                ).order_by(Contact.name).all()
+            # fetching all contacts if search term is not passed
+            else:
+                contacts = Contact.query.all()
+            data = []
+            for contact in contacts:
+                c_obj = {}
 
-            c_obj["id"] = contact.id
-            c_obj["name"] = contact.name
-            c_obj["email"] = contact.email_id
-            c_obj["phone"] = contact.phone
-            data.append(c_obj)
-        return resp_success("Successfully retrieved contacts.", data=get_paginated_list(data, start=int(start), limit=int(limit)))
+                c_obj["id"] = contact.id
+                c_obj["name"] = contact.name
+                c_obj["email"] = contact.email_id
+                c_obj["phone"] = contact.phone
+                data.append(c_obj)
+            return resp_success("Successfully retrieved contacts.", data=get_paginated_list(data, start=int(start), limit=int(limit)))
+        except Exception as e:
+            logger.exception(e)
+            db.session.rollback()
+            return resp_fail("Something went wrong.", status_code=500)
+
     
     def post(self, cid=None):
         try:
@@ -103,6 +109,18 @@ class ContactAPI(MethodView):
             db.session.rollback()
             return resp_fail("Something went wrong.", status_code=500)
 
+    def delete(self, cid=None):
+        try:
+            contact = Contact.query.filter_by(id=cid).first()
+            if cid and contact:
+                db.session.delete(contact)
+                db.session.commit()
+                return resp_success("Contact was successfully deleted")
+            return resp_fail("Contact not found", status_code=203)
+        except Exception as e:
+            logger.exception(e)
+            db.session.rollback()
+            return resp_fail("Something went wrong.", status_code=500)
 
 
 
